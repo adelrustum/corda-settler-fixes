@@ -5,6 +5,7 @@ import com.r3.corda.finance.obligation.contracts.ObligationContract
 import com.r3.corda.finance.obligation.contracts.commands.ObligationCommands
 import com.r3.corda.finance.obligation.contracts.states.Obligation
 import com.r3.corda.lib.tokens.contracts.types.TokenType
+import com.r3.corda.lib.tokens.money.FiatCurrency
 import net.corda.confidential.SwapIdentitiesFlow
 import net.corda.core.contracts.Amount
 import net.corda.core.flows.*
@@ -21,6 +22,7 @@ import java.security.PublicKey
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.*
 
 object CreateObligation {
 
@@ -33,12 +35,15 @@ object CreateObligation {
     @InitiatingFlow
     @StartableByRPC
     class Initiator<T : TokenType>(
-            private val amount: Amount<T>,
+            private val longAmount: Long,
+            private val currencyCode: String,
             private val role: InitiatorRole,
             private val counterparty: Party,
             private val dueBy: Instant? = null,
             private val anonymous: Boolean = true
     ) : FlowLogic<WireTransaction>() {
+        private val token = FiatCurrency(Currency.getInstance(currencyCode))
+        private val amount = Amount(longAmount, token)
 
         companion object {
             object INITIALISING : ProgressTracker.Step("Performing initial steps.")
@@ -59,7 +64,7 @@ object CreateObligation {
         override val progressTracker: ProgressTracker = tracker()
 
         @Suspendable
-        private fun createAnonymousObligation(lenderFlow: FlowSession): Pair<Obligation<T>, PublicKey> {
+        private fun createAnonymousObligation(lenderFlow: FlowSession): Pair<Obligation<FiatCurrency>, PublicKey> {
             // TODO: Update to use the new confidential identities constructor.
             val txKeys = subFlow(SwapIdentitiesFlow(lenderFlow))
             // SwapIdentityFlow should return two keys.
@@ -70,7 +75,7 @@ object CreateObligation {
             return createObligation(us = anonymousMe, them = anonymousObligor)
         }
 
-        private fun createObligation(us: AbstractParty, them: AbstractParty): Pair<Obligation<T>, PublicKey> {
+        private fun createObligation(us: AbstractParty, them: AbstractParty): Pair<Obligation<FiatCurrency>, PublicKey> {
             check(us != them) { "You cannot create an obligation to yourself" }
             val obligation = when (role) {
                 InitiatorRole.OBLIGEE -> Obligation(amount, them, us, dueBy)

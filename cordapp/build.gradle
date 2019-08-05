@@ -20,6 +20,10 @@ dependencies {
 
     // Tokens SDK.
     cordaCompile "$tokens_release_group:tokens-contracts:$tokens_release_version"
+    cordaCompile "$tokens_release_group:tokens-money:$tokens_release_version"
+
+    // Ripple library.
+    compile 'com.ripple:ripple-core:0.0.1-SNAPSHOT'
 }
 
 cordapp {

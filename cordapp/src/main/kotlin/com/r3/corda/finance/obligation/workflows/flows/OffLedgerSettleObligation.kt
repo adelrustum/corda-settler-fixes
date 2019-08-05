@@ -7,6 +7,7 @@ import com.r3.corda.finance.obligation.contracts.types.OnLedgerSettlement
 import com.r3.corda.finance.obligation.workflows.getLinearStateById
 import com.r3.corda.finance.obligation.workflows.resolver
 import com.r3.corda.lib.tokens.contracts.types.TokenType
+import com.r3.corda.lib.tokens.money.DigitalCurrency
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.StateAndRef
 import net.corda.core.contracts.UniqueIdentifier
@@ -21,9 +22,12 @@ object OffLedgerSettleObligation {
     @StartableByRPC
     @InitiatingFlow
     class Initiator<T : TokenType>(
-            private val amount: Amount<T>,
+            private val longAmount: Long,
+            private val digitalIdentifier: String,
             private val linearId: UniqueIdentifier
     ) : FlowLogic<WireTransaction>() {
+        private val token = DigitalCurrency(digitalIdentifier)
+        private val amount = Amount(longAmount, token)
 
         companion object {
             object INITIALISING : ProgressTracker.Step("Initialising off ledger payment.")

@@ -4,9 +4,9 @@ import co.paralleluniverse.fibers.Suspendable
 import com.r3.corda.finance.obligation.contracts.ObligationContract
 import com.r3.corda.finance.obligation.contracts.commands.ObligationCommands
 import com.r3.corda.finance.obligation.contracts.states.Obligation
-import com.r3.corda.finance.obligation.contracts.types.SettlementMethod
 import com.r3.corda.finance.obligation.workflows.getLinearStateById
 import com.r3.corda.finance.obligation.workflows.resolver
+import com.r3.corda.finance.ripple.types.XrpSettlement
 import com.r3.corda.lib.tokens.contracts.types.TokenType
 import net.corda.core.contracts.UniqueIdentifier
 import net.corda.core.flows.*
@@ -21,8 +21,10 @@ object UpdateSettlementMethod {
     @StartableByRPC
     class Initiator(
             val linearId: UniqueIdentifier,
-            private val settlementMethod: SettlementMethod
+            val accountToPay: String,
+            val settlementOracle: Party
     ) : FlowLogic<WireTransaction>() {
+        private val settlementMethod = XrpSettlement(accountToPay, settlementOracle)
 
         companion object {
             object INITIALISING : ProgressTracker.Step("Performing initial steps.")

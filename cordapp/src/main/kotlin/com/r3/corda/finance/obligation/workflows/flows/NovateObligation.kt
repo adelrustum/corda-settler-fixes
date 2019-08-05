@@ -8,7 +8,8 @@ import com.r3.corda.finance.obligation.contracts.types.FxRateRequest
 import com.r3.corda.finance.obligation.contracts.types.FxRateResponse
 import com.r3.corda.finance.obligation.workflows.getLinearStateById
 import com.r3.corda.finance.obligation.workflows.resolver
-import com.r3.corda.lib.tokens.contracts.types.TokenType
+import com.r3.corda.lib.tokens.money.DigitalCurrency
+import com.r3.corda.lib.tokens.money.FiatCurrency
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.StateAndRef
 import net.corda.core.contracts.UniqueIdentifier
@@ -19,6 +20,7 @@ import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.transactions.WireTransaction
 import net.corda.core.utilities.ProgressTracker
 import java.math.BigDecimal
+import java.util.*
 
 object NovateObligation {
 
@@ -26,9 +28,14 @@ object NovateObligation {
     @StartableByRPC
     class Initiator(
             val linearId: UniqueIdentifier,
-            private val novationCommand: ObligationCommands.Novate
+            private val fiatIdentifier: String,
+            private val digitalIdentifier: String,
+            private val oracle: Party
     ) : FlowLogic<WireTransaction>() {
-
+        private val fiatToken = FiatCurrency(Currency.getInstance(fiatIdentifier))
+        private val digitalToken = DigitalCurrency(digitalIdentifier)
+        private val novationCommand = ObligationCommands.Novate.
+                UpdateFaceAmountToken(fiatToken, digitalToken, oracle)
         companion object {
             object INITIALISING : ProgressTracker.Step("Performing initial steps.")
             object HANDLING : ProgressTracker.Step("Handling novation command.")
@@ -49,7 +56,8 @@ object NovateObligation {
         override val progressTracker: ProgressTracker = tracker()
 
         @Suspendable
-        fun handleUpdateFaceAmountToken(obligation: Obligation<TokenType>): Pair<Obligation<TokenType>, ObligationCommands.Novate> {
+        fun handleUpdateFaceAmountToken(obligation: Obligation<DigitalCurrency>):
+                Pair<Obligation<DigitalCurrency>, ObligationCommands.Novate> {
             // We know that this is a token change.
             novationCommand as ObligationCommands.Novate.UpdateFaceAmountToken<*, *>
             // If no fx rate is supplied then get one from the Oracle.
@@ -66,17 +74,18 @@ object NovateObligation {
 
         @Suspendable
         fun handleNovationCommand(
-                obligationStateAndRef: StateAndRef<Obligation<TokenType>>
-        ): Pair<Obligation<TokenType>, ObligationCommands.Novate> {
+                obligationStateAndRef: StateAndRef<Obligation<DigitalCurrency>>
+        ): Pair<Obligation<DigitalCurrency>, ObligationCommands.Novate> {
             val obligation = obligationStateAndRef.state.data
             return when (novationCommand) {
-                is ObligationCommands.Novate.UpdateDueBy ->
+                /*is ObligationCommands.Novate.UpdateDueBy ->
                     Pair(obligation.withDueByDate(novationCommand.newDueBy), novationCommand)
                 is ObligationCommands.Novate.UpdateParty ->
                     Pair(obligation.withNewCounterparty(novationCommand.oldParty, novationCommand.newParty), novationCommand)
                 is ObligationCommands.Novate.UpdateFaceAmountQuantity ->
-                    Pair(obligation.withNewFaceValueQuantity(novationCommand.newAmount), novationCommand)
+                    Pair(obligation.withNewFaceValueQuantity(novationCommand.newAmount), novationCommand)*/
                 is ObligationCommands.Novate.UpdateFaceAmountToken<*, *> -> handleUpdateFaceAmountToken(obligation)
+                else -> handleUpdateFaceAmountToken(obligation)
             }
         }
 
@@ -84,7 +93,7 @@ object NovateObligation {
         override fun call(): WireTransaction {
             // Get the obligation from our vault.
             progressTracker.currentStep = INITIALISING
-            val obligationStateAndRef = getLinearStateById<Obligation<TokenType>>(linearId, serviceHub)
+            val obligationStateAndRef = getLinearStateById<Obligation<DigitalCurrency>>(linearId, serviceHub)
                     ?: throw IllegalArgumentException("LinearId not recognised.")
             // Generate output and required signers list based based upon supplied command.
             progressTracker.currentStep = HANDLING
